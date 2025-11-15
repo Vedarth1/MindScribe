@@ -10,6 +10,8 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
@@ -17,6 +19,8 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+import com.Spring.MindScribe.repository.UserRepository;
 import com.Spring.MindScribe.utils.JwtAuthEntryPoint;
 
 @Configuration
@@ -38,8 +42,8 @@ public class ApplicationConfig {
                 .sessionManagement(sessionManagement -> sessionManagement
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorizeRequests -> authorizeRequests
-                        .requestMatchers( "/**").permitAll()
-                        .requestMatchers("/api/auth/login", "/api/auth/signup", "/error", "/swagger-ui/**", "/v1/api-docs/**").permitAll()
+                        .requestMatchers("/api/auth/login", "/api/auth/signup", "/error", "/swagger-ui/**", "/v1/api-docs/**","/api/v1/**")
+                        .permitAll()
                         .anyRequest().authenticated());
 
         http.addFilterBefore(jwtAuthFilter(), UsernamePasswordAuthenticationFilter.class);
@@ -61,6 +65,12 @@ public class ApplicationConfig {
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
+    }
+
+    @Bean
+    public UserDetailsService userDetailsService(UserRepository userRepository) {
+        return username -> userRepository.findByEmail(username)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found"));
     }
 
     @Bean
