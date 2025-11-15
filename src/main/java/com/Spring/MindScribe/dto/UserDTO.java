@@ -1,35 +1,19 @@
-package com.Spring.MindScribe.models;
+package com.Spring.MindScribe.dto;
 
-import jakarta.persistence.*;
+public class UserDTO {
 
-@Entity
-@Table(name = "users")
-public class User {
-
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
-
-    @Column(unique = true, nullable = false)
     private String email;
-
-    @Column(nullable = false)
     private String password;
-
-    @Column(nullable = false)
     private String name;
+    private String confirmPassword;
 
-    public User() {}
+    public UserDTO() {}
 
-    public User(Long id, String email, String password, String name) {
-        this.id = id;
+    public UserDTO(String email, String password, String name, String confirmPassword) {
         this.email = email;
         this.password = password;
         this.name = name;
-    }
-
-    public Long getId() {
-        return id;
+        this.confirmPassword = confirmPassword;
     }
 
     public String getEmail() {
@@ -44,8 +28,8 @@ public class User {
         return name;
     }
 
-    public void setId(Long id) {
-        this.id = id;
+    public String getConfirmPassword() {
+        return confirmPassword;
     }
 
     public void setEmail(String email) {
@@ -58,5 +42,9 @@ public class User {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    public void setConfirmPassword(String confirmPassword) {
+        this.confirmPassword = confirmPassword;
     }
 }
