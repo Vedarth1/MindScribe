@@ -38,7 +38,7 @@ public class ApplicationConfig {
                 .sessionManagement(sessionManagement -> sessionManagement
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorizeRequests -> authorizeRequests
-                        .requestMatchers("/api/auth/login", "/api/auth/signup", "/error", "/swagger-ui/**", "/v1/api-docs/**","/api/v1/**")
+                        .requestMatchers("/api/auth/**", "/error", "/swagger-ui/**", "/v1/api-docs/**")
                         .permitAll()
                         .anyRequest().authenticated());
 
