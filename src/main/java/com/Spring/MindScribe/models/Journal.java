@@ -1,5 +1,6 @@
 package com.Spring.MindScribe.models;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import jakarta.persistence.CascadeType;
@@ -39,7 +40,7 @@ public class Journal {
     private User owner;
 
     @OneToMany(mappedBy = "journal", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<Attachment> attachments;
+    private List<Attachment> attachments = new ArrayList<>();
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -66,6 +67,9 @@ public class Journal {
     public void setAttachments(List<Attachment> attachments) { this.attachments = attachments; }
 
     public void addAttachment(Attachment a) {
+        if (attachments == null) {
+            attachments = new ArrayList<>();
+        }
         attachments.add(a);
         a.setJournal(this);
     }
