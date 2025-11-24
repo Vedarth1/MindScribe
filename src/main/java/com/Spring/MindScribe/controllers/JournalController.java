@@ -3,6 +3,7 @@ package com.Spring.MindScribe.controllers;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import org.springframework.http.MediaType;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -11,21 +12,23 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-// import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.Spring.MindScribe.dto.JournalRequestDTO;
 import com.Spring.MindScribe.dto.JournalResponseDTO;
-import com.Spring.MindScribe.dto.ShareRequestDTO;
 import com.Spring.MindScribe.models.Attachment;
 import com.Spring.MindScribe.models.Journal;
 import com.Spring.MindScribe.models.User;
 import com.Spring.MindScribe.repository.UserRepository;
+import com.Spring.MindScribe.services.AttachmentService;
 import com.Spring.MindScribe.services.JournalService;
 import com.Spring.MindScribe.utils.AuthUtils;
 import com.Spring.MindScribe.utils.SlugUtil;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 @RestController
 @RequestMapping("/api/v1/journals")
@@ -37,8 +40,17 @@ public class JournalController {
     @Autowired
     private JournalService journalService;
 
-    @PostMapping("/create")
-    public ResponseEntity<JournalResponseDTO> create(@RequestBody JournalRequestDTO req, Authentication auth) {
+    @Autowired
+    private AttachmentService attachmentService;
+
+    @PostMapping(value = "/create",consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<JournalResponseDTO> create(
+            @RequestPart("data") String json,
+            @RequestPart(value = "files", required = false) MultipartFile[] files,
+            Authentication auth) throws Exception {
+
+        ObjectMapper mapper = new ObjectMapper();
+        JournalRequestDTO req = mapper.readValue(json, JournalRequestDTO.class);
         String email = auth.getName();
         Journal j = new Journal();
         j.setTitle(req.getTitle());
@@ -46,7 +58,15 @@ public class JournalController {
         j.setVisibility(req.getVisibility());
         j.setViewLater(req.isViewLater());
         j.setPublicUrl(SlugUtil.randomSlug());
+
         Journal saved = journalService.createJournal(email, j);
+
+        if (files != null) {
+            for (MultipartFile f : files) {
+                attachmentService.addAttachment(email, saved.getId(), f);
+            }
+        }
+
         return ResponseEntity.ok(toDto(saved));
     }
 
@@ -65,15 +85,23 @@ public class JournalController {
         return ResponseEntity.ok(toDto(j));
     }
 
-    @PutMapping("/update/{id}")
-    public ResponseEntity<JournalResponseDTO> update(@PathVariable Long id, @RequestBody JournalRequestDTO req, Authentication auth) {
+    @PutMapping(value = "/update/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<JournalResponseDTO> update(
+            @PathVariable Long id,
+            @RequestPart("data") String json,
+            @RequestPart(value = "files", required = false) MultipartFile[] newFiles,
+            Authentication auth
+    )throws Exception{
         String email = auth.getName();
-        Journal upd = new Journal();
-        upd.setTitle(req.getTitle());
-        upd.setContent(req.getContent());
-        upd.setVisibility(req.getVisibility());
-        upd.setViewLater(req.isViewLater());
-        Journal saved = journalService.updateJournal(email, id, upd);
+        JournalRequestDTO req = new ObjectMapper().readValue(json, JournalRequestDTO.class);
+        Journal saved = journalService.updateJournal(email, id, req);
+        attachmentService.removeAllAttachments(email, id);
+
+        if (newFiles != null) {
+            for (MultipartFile f : newFiles) {
+                attachmentService.addAttachment(email, id, f);
+            }
+        }
         return ResponseEntity.ok(toDto(saved));
     }
 
@@ -84,37 +112,42 @@ public class JournalController {
         return ResponseEntity.noContent().build();
     }
 
-    // --
-
-    @PostMapping("/{id}/share")
-    public ResponseEntity<?> share(@PathVariable Long id, @RequestBody ShareRequestDTO req, Authentication auth) {
-        String email = auth.getName();
-        if (!"read".equalsIgnoreCase(req.getPermission()) && !"write".equalsIgnoreCase(req.getPermission())) {
-            return ResponseEntity.badRequest().body("permission must be 'read' or 'write'");
-        }
-        journalService.shareJournal(email, id, req.getTargetEmail(), req.getPermission());
-        return ResponseEntity.ok().build();
-    }
-
     @GetMapping("/public/{publicUrl}")
-    public ResponseEntity<JournalResponseDTO> publicGet(@PathVariable String publicUrl) {
+    public ResponseEntity<?> publicGet(@PathVariable String publicUrl) {
         Journal j = journalService.getByPublicUrl(publicUrl);
+        if (!"public".equalsIgnoreCase(j.getVisibility())) {
+            return ResponseEntity.status(403).body("This journal is not publicly accessible");
+        }
         return ResponseEntity.ok(toDto(j));
     }
 
-    // @PutMapping("/{id}/view-later")
-    // public ResponseEntity<JournalResponseDTO> toggleViewLater(@PathVariable Long id, @RequestParam boolean value, Authentication auth) {
-    //     String email = auth.getName();
-    //     Journal j = journalService.getByIdForUser(email, id);
-    //     j.setViewLater(value);
-    //     Journal saved = journalService.updateJournal(email, id, j);
-    //     return ResponseEntity.ok(toDto(saved));
-    // }
+    @PutMapping("/{id}/view-later")
+    public ResponseEntity<JournalResponseDTO> toggleViewLater(@PathVariable Long id, @RequestParam boolean value, Authentication auth) {
+        String email = auth.getName();
+        Journal j = journalService.getByIdForUser(email, id);
+        JournalRequestDTO dto = new JournalRequestDTO();
+        dto.setTitle(j.getTitle());
+        dto.setContent(j.getContent());
+        dto.setVisibility(j.getVisibility());
+        dto.setViewLater(value);
+        Journal saved = journalService.updateJournal(email, id, dto);
+        return ResponseEntity.ok(toDto(saved));
+    }
 
     private JournalResponseDTO toDto(Journal j) {
         var atts = j.getAttachments() == null ? List.<String>of()
                   : j.getAttachments().stream().map(Attachment::getUrl).collect(Collectors.toList());
         return new JournalResponseDTO(j.getId(), j.getTitle(), j.getContent(), j.getVisibility(), j.getPublicUrl(), j.isViewLater(), atts);
+    }
+
+    @PostMapping(value = "/{id}/attachments", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> uploadAttachment(
+            @PathVariable Long id,
+            @RequestPart("file") MultipartFile file,
+            Authentication auth) {
+
+        attachmentService.addAttachment(auth.getName(), id, file);
+        return ResponseEntity.ok("uploaded");
     }
 
     @GetMapping("/hello")

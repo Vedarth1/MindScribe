@@ -12,4 +12,5 @@ import com.Spring.MindScribe.models.User;
 public interface JournalPermissionRepository extends JpaRepository<JournalPermission, Long>{
     List<JournalPermission> findByJournal(Journal journal);
     Optional<JournalPermission> findByJournalAndUser(Journal journal, User user);
+    List<JournalPermission> findByUser(User user);
 }
